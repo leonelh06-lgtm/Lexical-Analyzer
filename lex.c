@@ -33,7 +33,7 @@ typedef struct{
 char lexeme[MAX_LEXEME_LEN];
 int tokenType;
 int line;
-int column;
+int col;
 }Token;
 
 int main(int argc, char* argv[]){
@@ -43,13 +43,14 @@ if(argc != 2){
     return 1;
 }
 FILE* ifp = fopen(argv[1], "r");
+
 //Checks if file is empty
 if(ifp == NULL){
     printf("Error: unable to open input file '%s'", argv[1]);
     return 1;
 }
 
-//Creates token and Namable output files
+//Creates token and Nameable output files
 FILE* tokenFile = fopen("token.txt", "w");
 FILE* namableFile = fopen("nameable.txt", "w");
 
@@ -74,7 +75,7 @@ for(int i = 0; i< charCount; i++){
 //Variables used to store current location
 int i = 0;
 int col = 0;
-int row = 0;
+int line = 0;
 
 while(i<charCount){
     char ch = charStream[i];
@@ -83,7 +84,7 @@ while(i<charCount){
     if(isspace(ch)){
         //Check for newline
         if(ch == '\n'){
-            row++;
+            line++;
             col++;
         }
         //Check for Carriage Return
@@ -96,10 +97,10 @@ while(i<charCount){
         i++;
     }
 
-    int startRow = row;
+    int startLine = line;
     int startCol = col;
 
-    //Handles identifies and reserved words
+    //Handles identifiers and reserved words
     if(isalpha(ch)){
         //Creates string to store lexeme
         char lexeme[MAX_LEXEME_LEN];
@@ -117,9 +118,10 @@ while(i<charCount){
 
         //Check length of lexeme
         if(strlen(lexeme) > 12){
-            printf("Error 2 at line %d, column %d: identifier too long '%s'\n", row, col, lexeme);
+            printf("Error 2 at line %d, column %d: identifier too long '%s'\n", line, col, lexeme);
         }
     }
+    //Handles numbers
     else if(isdigit(ch)){
         char lexeme[MAX_LEXEME_LEN];
         int lexIdx = 0;
@@ -132,6 +134,60 @@ while(i<charCount){
             col++;
         }
         lexeme[lexIdx] = '\0';
+
+        int hasLetter = 0;
+        for(int j = 0; lexeme[j] != '\0'; j++){
+            if(isalpha(lexeme[j])){
+                hasLetter = 1;
+                break;
+            }
+        }
+        if(hasLetter){
+            printf("Error 6 at line %d, column %d: number followed by a letter %s, with the whole alphanumeric run in place of lexeme. A digit run with a letter immediately after it, such as 123abc.\n", line, col, lexeme);
+            return 1;
+        }
+        if(strlen(lexeme) > 6){
+            printf("Error 3 at line %d, column %d: number too long %s. A digit run longer than six digits.\n", line, col, lexeme);
+            return 1;
+        }
+    }
+
+ //Handles Comments
+
+ //Checks for "*/"
+    if(ch = '/' && i + 1 < charCount && charStream[i + 1] == '*'){
+        int commentStartLine = line;
+        int commentStartCol = col;
+        i += 2;
+        col += 2;
+
+        //Flag for if the comment closes
+        int closed = 0;
+        while(i<charCount){
+            if(charStream[i] == "/" && i + 1 < charCount && charStream[i + 1] == '*'){
+                printf("Error 9 at line %d, column %d: ’/*’ inside a comment.\n", line, col);
+            }
+            if(charStream[i] == "*" && i + 1<charCount && charStream[i + 1] == "/"){
+                i+= 2;
+                col += 2;
+                closed = 1;
+                break;
+            }
+
+            if(charStream[i] == "\n"){
+                line++;
+                col = 1;
+            }
+            else if(charStream[i] != '\r'){
+                col++;
+
+            }
+            i++;
+        }
+
+        if(!closed){
+            printf("Error 7 at line %d, column %d: comment is not closed before end of file.\n", commentStartLine, commentStartCol);
+        }
     }
 
 }
