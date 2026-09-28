@@ -28,7 +28,7 @@ Due Date: 10/2/2026
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
-#define MAX_LEXEME_LEN 1000
+#define MAX_LEXEME_LEN 16
 
 typedef struct{
 char lexeme[MAX_LEXEME_LEN];
@@ -37,6 +37,7 @@ int line;
 int col;
 }Token;
 
+void addToken(Token* tokens, int tCount, char* lexeme, int tokenType, int line, int col);
 int main(int argc, char* argv[]){
 //Check if command line promt is incorrect
 if(argc != 2){
@@ -56,14 +57,18 @@ FILE* tokenFile = fopen("tokens.txt", "w");
 FILE* namableFile = fopen("nametable.txt", "w");
 
 int charCount = 0;
+int tCount = 0;
 int ch;
-Token* tokens = malloc(sizeof(Token) * charCount);
+
 
 //Gets length of file to dyanmically allocate charStream
 while((ch = fgetc(ifp)) != EOF){
     charCount++;
 }
 rewind(ifp);
+
+//Allocates space for tokenStream
+Token* tokens = malloc(sizeof(Token) * charCount);
 
 printf("Source Program:\n\n");
 
@@ -77,7 +82,12 @@ for(int i = 0; i< charCount; i++){
 //Variables used to store current location
 int i = 0;
 int col = 1;
-int line = 0;
+int line = 1;
+int errCode;
+int errLine;
+int errCol;
+char errMsg[200];
+
 
 while(i<charCount){
     char ch = charStream[i];
@@ -121,8 +131,11 @@ while(i<charCount){
 
         //Check length of lexeme
         if(strlen(lexeme) > 12){
-            printf("Error 2 at line %d, column %d: identifier too long '%s'\n", startLine, startCol, lexeme);
-            return 1;
+            errCode = 2;
+            errLine = startLine;
+            errCol = startCol;
+            snprintf(errMsg, sizeof(errMsg), "identifier too long %s.", lexeme);
+            break;
         }
     }
     //Handles numbers
@@ -147,16 +160,22 @@ while(i<charCount){
             }
         }
         if(hasLetter){
-            printf("Error 6 at line %d, column %d: number followed by a letter %s.\n", startLine, startCol, lexeme);
-            return 1;
+            errCode = 6;
+            errLine = line;
+            errCol = col;
+            snprintf(errMsg, sizeof(errMsg), "number followed by a letter %s", lexeme);
+            break;
         }
         if(strlen(lexeme) > 6){
-            printf("Error 3 at line %d, column %d: number too long %s.\n", startLine, startCol, lexeme);
-            return 1;
+            errCode = 3;
+            errLine = startLine;
+            errCol = startCol;
+            snprintf(errMsg, sizeof(errMsg), "number too long %s", lexeme);
+            break;
         }
     }
 
- //Handles Opperators & Comments
+ //Handles Comments
 
  //Comments
  //Checks for "/*"
@@ -171,8 +190,10 @@ while(i<charCount){
         while(i<charCount){
             //Checks if there is a comment while inside the comment
             if(charStream[i] == '/' && i + 1 < charCount && charStream[i + 1] == '*'){
-                printf("Error 9 at line %d, column %d: ’/*’ inside a comment.\n", line, col);
-                return 1;
+                errCode = 9;
+                errLine = startLine;
+                errCol = startCol;
+                break;
             }
 
             //checks for closing comment "*/"
@@ -201,29 +222,50 @@ while(i<charCount){
         }
 
         if(!closed){
-            printf("Error 7 at line %d, column %d: comment is not closed before end of file.\n", commentStartLine, commentStartCol);
-            return 1;
+            errCode = 7;
+            errLine = line;
+            errCol = col;
+            snprintf(errMsg, sizeof(errMsg), "comment is not closed before end of file.");
+            break;
         }
         continue;
-
-        switch(ch)
-        {
-            case ':':
-                if(i + 1 < charCount && charStream[i + 1] == '='){
-                    //Token 19 (:=)
-
-                }
-                else{
-                    printf("Error 4 at line %d, column %d: ’:’ must be followed by ’=’. A colon that is not part of :=.", line, col);
-                }
         }
+
+
+    //Handles Special Symbols
+    int tCode;
+    switch(ch)
+    {
+        case '+': tCode = 3;
+        case '-': tCode = 4;
+        case '*': tCode = 5;
+        case '/': tCode = 6;
+        case '=' : 
+            if(i < charCount && charStream[i + 1] == '='){
+                tCode = 7;
+            }
+        case '(': tCode = 13;
+        case ')': tCode = 14;
+        case ',': tCode = 15;
+        case ';': tCode = 16;
+        case '.': tCode = 17;
+
+        i++;
+        col++;
     }
+
 
 
 
 }
 
-printf("\nLexeme Table:\n\n");
-printf("lexeme\ttoken\n");
 free(charStream);
+}
+void addToken(Token* tokens, int tCount, char* lexeme, int tokenType, int line, int col){
+    Token t;
+    strcpy(t.lexeme, lexeme);
+    t.tokenType = tokenType;
+    t.line = line;
+    t.col = col;
+    tokens[tCount] = t;
 }
