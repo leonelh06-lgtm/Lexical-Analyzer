@@ -37,7 +37,7 @@ int line;
 int col;
 }Token;
 
-void addToken(Token* tokens, int tCount, char* lexeme, int tokenType, int line, int col);
+void addToken(Token* tokens, int* tCount, char* lexeme, int tokenType, int line, int col);
 int main(int argc, char* argv[]){
 //Check if command line promt is incorrect
 if(argc != 2){
@@ -83,7 +83,7 @@ for(int i = 0; i< charCount; i++){
 int i = 0;
 int col = 1;
 int line = 1;
-int errCode;
+int errCode = 0;
 int errLine;
 int errCol;
 char errMsg[200];
@@ -134,9 +134,10 @@ while(i<charCount){
             errCode = 2;
             errLine = startLine;
             errCol = startCol;
-            snprintf(errMsg, sizeof(errMsg), "identifier too long %s.", lexeme);
+            snprintf(errMsg, sizeof(errMsg), "identifier too long %s.\n", lexeme);
             break;
         }
+        addToken(tokens, &tCount, lexeme, 1, startLine, startCol);
     }
     //Handles numbers
     else if(isdigit(ch)){
@@ -163,16 +164,17 @@ while(i<charCount){
             errCode = 6;
             errLine = line;
             errCol = col;
-            snprintf(errMsg, sizeof(errMsg), "number followed by a letter %s", lexeme);
+            snprintf(errMsg, sizeof(errMsg), "number followed by a letter %s.\n", lexeme);
             break;
         }
         if(strlen(lexeme) > 6){
             errCode = 3;
             errLine = startLine;
             errCol = startCol;
-            snprintf(errMsg, sizeof(errMsg), "number too long %s", lexeme);
+            snprintf(errMsg, sizeof(errMsg), "number too long %s.\n", lexeme);
             break;
         }
+        addToken(tokens, &tCount, lexeme, 2, startLine, startCol);
     }
 
  //Handles Comments
@@ -193,6 +195,7 @@ while(i<charCount){
                 errCode = 9;
                 errLine = startLine;
                 errCol = startCol;
+                snprintf(errMsg, sizeof(errMsg), "’/*’ inside a comment.\n");
                 break;
             }
 
@@ -225,7 +228,7 @@ while(i<charCount){
             errCode = 7;
             errLine = line;
             errCol = col;
-            snprintf(errMsg, sizeof(errMsg), "comment is not closed before end of file.");
+            snprintf(errMsg, sizeof(errMsg), "comment is not closed before end of file.\n");
             break;
         }
         continue;
@@ -234,26 +237,157 @@ while(i<charCount){
 
     //Handles Special Symbols
     int tCode;
+
+    /*Creates token and adds into token stream 
+    then increment i and col by 1 if its a single
+    char symbol 2 if its a double char symbol*/
     switch(ch)
     {
-        case '+': tCode = 3;
-        case '-': tCode = 4;
-        case '*': tCode = 5;
-        case '/': tCode = 6;
-        case '=' : 
-            if(i < charCount && charStream[i + 1] == '='){
-                tCode = 7;
-            }
-        case '(': tCode = 13;
-        case ')': tCode = 14;
-        case ',': tCode = 15;
-        case ';': tCode = 16;
-        case '.': tCode = 17;
+        case '+': 
+            addToken(tokens, &tCount, "+", 3, line, col);
+            i++;
+            col++;
+            break;
 
+        case '-': 
+            addToken(tokens, &tCount, "-", 4, line, col);
+            i++;
+            col++;
+            break;
+
+        case '*': 
+            addToken(tokens, &tCount, "*", 5, line, col);
+            i++;
+            col++;
+            break;
+
+        case '/': 
+            addToken(tokens, &tCount, "/", 6, line, col);
+            i++;
+            col++;
+            break;
+
+        case '=' : 
+            if(i + 1< charCount && charStream[i + 1] == '='){
+                addToken(tokens, &tCount, "==", 7, line, col);
+                i++;
+                col++;
+                break;
+            }
+            else{
+                addToken(tokens, &tCount, "=", 18, line, col);
+                i++;
+                col++;
+                break;
+            }
+
+        case '!':
+            if(i + 1 < charCount && charStream[i + 1] == '='){
+                addToken(tokens, &tCount, "!=", 8, line, col);
+                i+= 2;
+                col+= 2;
+                break;
+            }
+            else{
+                errCode = 5;
+                errLine = line;
+                errCol = col;
+                snprintf(errMsg, sizeof(errMsg), "’!’ must be followed by ’=’.\n");
+                break;
+            }
+
+        case '<':
+            if(i + 1 <  charCount && charStream[i + 1] == '='){
+                addToken(tokens, &tCount, "<=", 10, line, col);
+                i += 2;
+                col+= 2;
+                break;
+            }
+            else{
+                addToken(tokens, &tCount, "<", 9, line, col);
+                i++;
+                col++;
+                break;
+            }
+
+        case '>':
+            if(i + 1 < charCount && charStream[i + 1] == '='){
+                addToken(tokens, &tCount, ">=", 12, line, col);
+                i+= 2;
+                col+= 2;
+                break;
+            }
+            else{
+                addToken(tokens, &tCount, ">", 11, line, col);
+                i++;
+                col++;
+                break;
+            }
+
+        case '(':
+            addToken(tokens, &tCount, "(", 13, line, col);
+            i++;
+            col++;
+            break;
+
+        case ')': 
+        addToken(tokens, &tCount, ")", 14, line, col);
         i++;
         col++;
+        break;
+
+        case ',': 
+        addToken(tokens, &tCount, ",", 15, line, col);
+        i++;
+        col++;
+        break;
+
+        case ';': 
+        addToken(tokens, &tCount, ";", 16, line, col);
+        i++;
+        col++;
+        break;
+
+        case '.': 
+        addToken(tokens, &tCount, ".", 17, line, col);
+        i++;
+        col++;
+        break;
+
+        case ':':
+            if(i + 1 < charCount && charStream[i + 1] == '='){
+                addToken(tokens, &tCount, ":=", 19, line, col);
+                i+= 2;
+                col+= 2;
+                break;
+            }
+            else{
+                errCode = 4;
+                errLine = line;
+                errCol = col;
+                snprintf(errMsg, sizeof(errMsg), "’:’ must be followed by ’=’.\n");
+                break;
+            }
+            
+        default:
+            if(isprint(ch)){
+                errCode = 1;
+                errLine = line;
+                errCol = col;
+                snprintf(errMsg, sizeof(errMsg), "invalid character ’c’, with the character in place of c.", ch);
+                break;
+            }
+            else{
+                errCode = 10;
+                errLine = line;
+                errCol = col;
+                snprintf(errMsg, sizeof(errMsg), "byte 0x%02X is not part of this language", (unsigned char)ch);
+                break;
+            }
     }
 
+    if(errCode != 0)
+        break;
 
 
 
@@ -261,11 +395,12 @@ while(i<charCount){
 
 free(charStream);
 }
-void addToken(Token* tokens, int tCount, char* lexeme, int tokenType, int line, int col){
+void addToken(Token* tokens, int* tCount, char* lexeme, int tokenType, int line, int col){
     Token t;
     strcpy(t.lexeme, lexeme);
     t.tokenType = tokenType;
     t.line = line;
     t.col = col;
-    tokens[tCount] = t;
+    tokens[*tCount] = t;
+    (*tCount)++;
 }
