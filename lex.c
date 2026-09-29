@@ -32,12 +32,13 @@ Due Date: 10/2/2026
 
 typedef struct{
 char lexeme[MAX_LEXEME_LEN];
-int tokenType;
+int tokenCode;
 int line;
 int col;
+int nameIdx;
 }Token;
 
-void addToken(Token* tokens, int* tCount, char* lexeme, int tokenType, int line, int col);
+void addToken(Token* tokens, int* tCount, char* lexeme, int tokenCode, int line, int col);
 int main(int argc, char* argv[]){
 //Check if command line promt is incorrect
 if(argc != 2){
@@ -57,8 +58,12 @@ FILE* tokenFile = fopen("tokens.txt", "w");
 FILE* namableFile = fopen("nametable.txt", "w");
 
 int charCount = 0;
-int tCount = 0;
 int ch;
+
+//Should have done parallel array for symbols too but I came up with the idea after :(
+const char* reservedWords[] = {"begin", "end", "if", "fi", "then", "while", "elihw", "do", "od", "odd", "call", "const", "var", "procedure", "write", "read", "else"};
+const int reserverdCodes[] = {20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36};
+const int wordsReserved = 17;
 
 
 //Gets length of file to dyanmically allocate charStream
@@ -67,9 +72,11 @@ while((ch = fgetc(ifp)) != EOF){
 }
 rewind(ifp);
 
-//Allocates space for tokenStream
+//Allocates space for tokenStream & names Array of Tokens
 Token* tokens = malloc(sizeof(Token) * charCount);
-
+int tCount = 0;
+Token* names = malloc(sizeof(Token) * charCount);
+int nameCount = 0;
 printf("Source Program:\n\n");
 
 //Stores the character stream and prints out source program
@@ -93,7 +100,7 @@ while(i<charCount){
     char ch = charStream[i];
 
     //Condtional Logic if ch is one of the four space characters
-    if(isspace(ch)){
+    if(isspace((unsigned char) ch)){
         //Check for newline
         if(ch == '\n'){
             line++;
@@ -114,13 +121,13 @@ while(i<charCount){
     int startCol = col;
 
     //Handles identifiers and reserved words
-    if(isalpha(ch)){
+    if(isalpha((unsigned char) ch)){
         //Creates string to store lexeme
         char lexeme[MAX_LEXEME_LEN];
         int lexIdx = 0;
 
         //Stores uninterrupted letters and numbers in lexeme
-        while(i<charCount && isalnum(charStream[i])){
+        while(i<charCount && isalnum((unsigned char) charStream[i])){
             if(lexIdx < MAX_LEXEME_LEN - 1){
                 lexeme[lexIdx++] = charStream[i];
             }
@@ -134,17 +141,52 @@ while(i<charCount){
             errCode = 2;
             errLine = startLine;
             errCol = startCol;
-            snprintf(errMsg, sizeof(errMsg), "identifier too long %s.\n", lexeme);
+            snprintf(errMsg, sizeof(errMsg), "identifier too long %s\n", lexeme);
             break;
         }
-        addToken(tokens, &tCount, lexeme, 1, startLine, startCol);
+        
+        //Flag to check if reserved word
+        int reserved = 0;
+
+        //Checks for reserved words
+        for(int f = 0; f<wordsReserved; f++){
+            //If reserved word logic
+            if(strcmp(lexeme, reservedWords[f]) == 0){
+                reserved = 1;
+                addToken(tokens, &tCount, lexeme, reserverdCodes[f], startLine, startCol);
+                break;
+            }
+        }
+
+        //If identifier logic
+        if(!reserved){
+            int n;
+            for(n = 0; n<nameCount; n++){
+                //Only adds to names first time an identifier is
+                if(strcmp(names[n].lexeme, lexeme) == 0){
+                    break;
+                }
+            }
+            //Unique identifier
+            if(n == nameCount){
+                strcpy(names[nameCount].lexeme, lexeme);
+                names[nameCount].line = startLine;
+                names[nameCount].col = startCol;
+                nameCount++;
+            }
+
+            //Wether or not added to names still is added to tokenStream
+            addToken(tokens, &tCount, lexeme, 1, startLine, startCol);
+            tokens[tCount - 1].nameIdx = n;
+        }
+        
     }
     //Handles numbers
-    else if(isdigit(ch)){
+    else if(isdigit((unsigned char) ch)){
         char lexeme[MAX_LEXEME_LEN];
         int lexIdx = 0;
 
-        while(i<charCount && isalnum(charStream[i])){
+        while(i<charCount && isalnum( (unsigned char) charStream[i])){
             if(lexIdx < MAX_LEXEME_LEN - 1){
                 lexeme[lexIdx++] = charStream[i];
             }
@@ -155,23 +197,23 @@ while(i<charCount){
 
         int hasLetter = 0;
         for(int j = 0; lexeme[j] != '\0'; j++){
-            if(isalpha(lexeme[j])){
+            if(isalpha((unsigned char)lexeme[j])){
                 hasLetter = 1;
                 break;
             }
         }
         if(hasLetter){
             errCode = 6;
-            errLine = line;
-            errCol = col;
-            snprintf(errMsg, sizeof(errMsg), "number followed by a letter %s.\n", lexeme);
+            errLine = startLine;
+            errCol = startCol;
+            snprintf(errMsg, sizeof(errMsg), "number followed by a letter %s", lexeme);
             break;
         }
         if(strlen(lexeme) > 6){
             errCode = 3;
             errLine = startLine;
             errCol = startCol;
-            snprintf(errMsg, sizeof(errMsg), "number too long %s.\n", lexeme);
+            snprintf(errMsg, sizeof(errMsg), "number too long %s", lexeme);
             break;
         }
         addToken(tokens, &tCount, lexeme, 2, startLine, startCol);
@@ -193,9 +235,9 @@ while(i<charCount){
             //Checks if there is a comment while inside the comment
             if(charStream[i] == '/' && i + 1 < charCount && charStream[i + 1] == '*'){
                 errCode = 9;
-                errLine = startLine;
-                errCol = startCol;
-                snprintf(errMsg, sizeof(errMsg), "’/*’ inside a comment.\n");
+                errLine = line;
+                errCol = col;
+                snprintf(errMsg, sizeof(errMsg), "’/*’ inside a comment");
                 break;
             }
 
@@ -226,9 +268,9 @@ while(i<charCount){
 
         if(!closed){
             errCode = 7;
-            errLine = line;
-            errCol = col;
-            snprintf(errMsg, sizeof(errMsg), "comment is not closed before end of file.\n");
+            errLine = commentStartLine;
+            errCol = commentStartCol;
+            snprintf(errMsg, sizeof(errMsg), "comment is not closed before end of file");
             break;
         }
         continue;
@@ -236,7 +278,6 @@ while(i<charCount){
 
 
     //Handles Special Symbols
-    int tCode;
 
     /*Creates token and adds into token stream 
     then increment i and col by 1 if its a single
@@ -270,8 +311,8 @@ while(i<charCount){
         case '=' : 
             if(i + 1< charCount && charStream[i + 1] == '='){
                 addToken(tokens, &tCount, "==", 7, line, col);
-                i++;
-                col++;
+                i+= 2;
+                col+= 2;
                 break;
             }
             else{
@@ -292,7 +333,7 @@ while(i<charCount){
                 errCode = 5;
                 errLine = line;
                 errCol = col;
-                snprintf(errMsg, sizeof(errMsg), "’!’ must be followed by ’=’.\n");
+                snprintf(errMsg, sizeof(errMsg), "’!’ must be followed by ’=’");
                 break;
             }
 
@@ -365,16 +406,16 @@ while(i<charCount){
                 errCode = 4;
                 errLine = line;
                 errCol = col;
-                snprintf(errMsg, sizeof(errMsg), "’:’ must be followed by ’=’.\n");
+                snprintf(errMsg, sizeof(errMsg), "’:’ must be followed by ’=’");
                 break;
             }
             
         default:
-            if(isprint(ch)){
+            if(isprint((unsigned char) ch)){
                 errCode = 1;
                 errLine = line;
                 errCol = col;
-                snprintf(errMsg, sizeof(errMsg), "invalid character ’c’, with the character in place of c.", ch);
+                snprintf(errMsg, sizeof(errMsg), "invalid character %c", ch);
                 break;
             }
             else{
@@ -393,12 +434,13 @@ while(i<charCount){
 
 }
 
+
 free(charStream);
 }
-void addToken(Token* tokens, int* tCount, char* lexeme, int tokenType, int line, int col){
+void addToken(Token* tokens, int* tCount, char* lexeme, int tokenCode, int line, int col){
     Token t;
     strcpy(t.lexeme, lexeme);
-    t.tokenType = tokenType;
+    t.tokenCode = tokenCode;
     t.line = line;
     t.col = col;
     tokens[*tCount] = t;
