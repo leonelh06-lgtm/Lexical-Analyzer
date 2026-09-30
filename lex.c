@@ -77,14 +77,16 @@ Token* tokens = malloc(sizeof(Token) * charCount);
 int tCount = 0;
 Token* names = malloc(sizeof(Token) * charCount);
 int nameCount = 0;
-printf("Source Program:\n\n");
 
+//Header for Source Program section
+printf("Source Program:\n\n");
 //Stores the character stream and prints out source program
 char* charStream = malloc(sizeof(char) * (charCount + 1));
 for(int i = 0; i< charCount; i++){
     fscanf(ifp, "%c", &charStream[i]);
     printf("%c", charStream[i]);
 }
+printf("\n");
 
 //Variables used to store current location
 int i = 0;
@@ -126,8 +128,12 @@ while(i<charCount){
         char lexeme[MAX_LEXEME_LEN];
         int lexIdx = 0;
 
+        //Used to track length for errror 2
+        int start = i;
+
         //Stores uninterrupted letters and numbers in lexeme
         while(i<charCount && isalnum((unsigned char) charStream[i])){
+
             if(lexIdx < MAX_LEXEME_LEN - 1){
                 lexeme[lexIdx++] = charStream[i];
             }
@@ -136,12 +142,15 @@ while(i<charCount){
         }
         lexeme[lexIdx] = '\0';
 
+        int len = i - start;
+
         //Check length of lexeme
-        if(strlen(lexeme) > 12){
+        if(len > 12){
             errCode = 2;
             errLine = startLine;
             errCol = startCol;
-            snprintf(errMsg, sizeof(errMsg), "identifier too long %s\n", lexeme);
+            //Gets adress to start reading at then prints full too long identifier
+            snprintf(errMsg, sizeof(errMsg), "identifier too long '%.*s'", len, charStream + start);
             break;
         }
         
@@ -179,6 +188,8 @@ while(i<charCount){
             addToken(tokens, &tCount, lexeme, 1, startLine, startCol);
             tokens[tCount - 1].nameIdx = n;
         }
+        //Starts next loop for next lexeme
+        continue;
         
     }
     //Handles numbers
@@ -206,17 +217,19 @@ while(i<charCount){
             errCode = 6;
             errLine = startLine;
             errCol = startCol;
-            snprintf(errMsg, sizeof(errMsg), "number followed by a letter %s", lexeme);
+            snprintf(errMsg, sizeof(errMsg), "number followed by a letter '%s'", lexeme);
             break;
         }
         if(strlen(lexeme) > 6){
             errCode = 3;
             errLine = startLine;
             errCol = startCol;
-            snprintf(errMsg, sizeof(errMsg), "number too long %s", lexeme);
+            snprintf(errMsg, sizeof(errMsg), "number too long '%s'", lexeme);
             break;
         }
         addToken(tokens, &tCount, lexeme, 2, startLine, startCol);
+        //Starts next loop for next lexeme
+        continue;
     }
 
  //Handles Comments
@@ -229,15 +242,17 @@ while(i<charCount){
         i += 2;
         col += 2;
 
-        //Flag for if the comment closes
+        //Initialize comment close flag
         int closed = 0;
+
+        //Loops through comment
         while(i<charCount){
             //Checks if there is a comment while inside the comment
             if(charStream[i] == '/' && i + 1 < charCount && charStream[i + 1] == '*'){
                 errCode = 9;
                 errLine = line;
                 errCol = col;
-                snprintf(errMsg, sizeof(errMsg), "’/*’ inside a comment");
+                snprintf(errMsg, sizeof(errMsg), "'/*' inside a comment");
                 break;
             }
 
@@ -258,7 +273,6 @@ while(i<charCount){
             //Any character other than carriage return will advance column of current position
             else if(charStream[i] != '\r'){
                 col++;
-
             }
             //Advances charStream element while inside comment
             i++;
@@ -266,13 +280,19 @@ while(i<charCount){
 
         }
 
-        if(!closed){
+        //errCode condition prevents collision with error 9
+        if(!closed && errCode == 0){
             errCode = 7;
             errLine = commentStartLine;
             errCol = commentStartCol;
             snprintf(errMsg, sizeof(errMsg), "comment is not closed before end of file");
             break;
         }
+
+        //If theres error 7 or 9 then get out of the loop and print results
+        if(errCode != 0)
+            break;
+        
         continue;
         }
 
@@ -297,9 +317,17 @@ while(i<charCount){
             break;
 
         case '*': 
-            addToken(tokens, &tCount, "*", 5, line, col);
+            if(i+ 1 < charCount && charStream[i + 1] == '/'){
+                errCode = 8;
+                errLine = line;
+                errCol = col;
+                snprintf(errMsg, sizeof(errMsg), "'*/' without a matching '/*'");
+            }
+            else{
+                addToken(tokens, &tCount, "*", 5, line, col);
             i++;
             col++;
+            }
             break;
 
         case '/': 
@@ -333,7 +361,7 @@ while(i<charCount){
                 errCode = 5;
                 errLine = line;
                 errCol = col;
-                snprintf(errMsg, sizeof(errMsg), "’!’ must be followed by ’=’");
+                snprintf(errMsg, sizeof(errMsg), "'!' must be followed by '='");
                 break;
             }
 
@@ -406,7 +434,7 @@ while(i<charCount){
                 errCode = 4;
                 errLine = line;
                 errCol = col;
-                snprintf(errMsg, sizeof(errMsg), "’:’ must be followed by ’=’");
+                snprintf(errMsg, sizeof(errMsg), "':' must be followed by '='");
                 break;
             }
             
@@ -415,7 +443,7 @@ while(i<charCount){
                 errCode = 1;
                 errLine = line;
                 errCol = col;
-                snprintf(errMsg, sizeof(errMsg), "invalid character %c", ch);
+                snprintf(errMsg, sizeof(errMsg), "invalid character '%c'", ch);
                 break;
             }
             else{
@@ -429,13 +457,77 @@ while(i<charCount){
 
     if(errCode != 0)
         break;
-
-
-
 }
 
+//Checks if any tokens
+if(tCount == 0 && errCode == 0){
+    errCode = 11;
+    errLine = 1;
+    errCol = 1;
+    snprintf(errMsg, sizeof(errMsg), "no tokens in the source program");
+}
 
+//Handles output in main .txt file
+
+//Lexeme Table
+printf("\nLexeme Table:\n");
+printf("\nlexeme\ttoken\n");
+for(int i = 0; i<tCount; i++){
+    printf("%s\t%d\n", tokens[i].lexeme, tokens[i].tokenCode);
+}
+//Name Table
+printf("\nName Table:\n\n");
+printf("index\tname\t\tline\tcolumn\n");
+for(int i = 0; i<nameCount; i++){
+    printf("%d\t%s\t\t%d\t%d\n", i, names[i].lexeme, names[i].line, names[i].col);
+}
+
+//Token List
+printf("\nToken List:\n\n");
+for(int i = 0; i<tCount; i++){
+    if(tokens[i].tokenCode == 1){
+        printf("%d %d ", tokens[i].tokenCode, tokens[i].nameIdx);
+    }
+    else if(tokens[i].tokenCode == 2){
+        printf("%d %s ", tokens[i].tokenCode, tokens[i].lexeme);
+    }
+    else{
+    printf("%d ", tokens[i].tokenCode);
+    }
+}
+printf("\n");
+
+// Writes results into token.txt and nameable.txt
+for(int i = 0; i < tCount; i++){
+    if(tokens[i].tokenCode == 1){
+        fprintf(tokenFile, "%d %d\n", tokens[i].tokenCode, tokens[i].nameIdx);
+    }
+    else if(tokens[i].tokenCode == 2){
+       fprintf(tokenFile, "%d %s\n", tokens[i].tokenCode, tokens[i].lexeme);
+    }
+    else{
+        fprintf(tokenFile, "%d\n", tokens[i].tokenCode);
+    }
+}
+
+for(int i = 0; i < nameCount; i++){
+    fprintf(namableFile, "%d %s %d %d\n", i, names[i].lexeme, names[i].line, names[i].col);
+}
+
+fclose(tokenFile);
+fclose(namableFile);
+
+//Prints error codes
+if(errCode != 0){
+    printf("Error %d at line %d, column %d: %s\n", errCode, errLine, errCol, errMsg);
+}
+
+//Frees allocated memory
+free(tokens);
+free(names);
 free(charStream);
+
+return errCode != 0;
 }
 void addToken(Token* tokens, int* tCount, char* lexeme, int tokenCode, int line, int col){
     Token t;
