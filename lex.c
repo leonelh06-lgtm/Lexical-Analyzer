@@ -101,8 +101,8 @@ char errMsg[200];
 while(i<charCount){
     char ch = charStream[i];
 
-    //Condtional Logic if ch is one of the four space characters
-    if(isspace((unsigned char) ch)){
+    //Condtional Logic if ch is one of the four white space chars
+    if(ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r'){
         //Check for newline
         if(ch == '\n'){
             line++;
@@ -192,10 +192,13 @@ while(i<charCount){
         continue;
         
     }
+
     //Handles numbers
     else if(isdigit((unsigned char) ch)){
         char lexeme[MAX_LEXEME_LEN];
         int lexIdx = 0;
+
+        int start = i;
 
         while(i<charCount && isalnum( (unsigned char) charStream[i])){
             if(lexIdx < MAX_LEXEME_LEN - 1){
@@ -205,7 +208,9 @@ while(i<charCount){
             col++;
         }
         lexeme[lexIdx] = '\0';
+        int len = i - start;
 
+        //Checks for error 6
         int hasLetter = 0;
         for(int j = 0; lexeme[j] != '\0'; j++){
             if(isalpha((unsigned char)lexeme[j])){
@@ -217,14 +222,14 @@ while(i<charCount){
             errCode = 6;
             errLine = startLine;
             errCol = startCol;
-            snprintf(errMsg, sizeof(errMsg), "number followed by a letter '%s'", lexeme);
+            snprintf(errMsg, sizeof(errMsg), "number followed by a letter '%.*s'", len, charStream + start);
             break;
         }
-        if(strlen(lexeme) > 6){
+        if(len > 6){
             errCode = 3;
             errLine = startLine;
             errCol = startCol;
-            snprintf(errMsg, sizeof(errMsg), "number too long '%s'", lexeme);
+            snprintf(errMsg, sizeof(errMsg), "number too long '%.*s'", len, charStream + start);
             break;
         }
         addToken(tokens, &tCount, lexeme, 2, startLine, startCol);
@@ -473,13 +478,13 @@ if(tCount == 0 && errCode == 0){
 printf("\nLexeme Table:\n");
 printf("\nlexeme\ttoken\n");
 for(int i = 0; i<tCount; i++){
-    printf("%s\t%d\n", tokens[i].lexeme, tokens[i].tokenCode);
+    printf("%s\t\t\t%d\n", tokens[i].lexeme, tokens[i].tokenCode);
 }
 //Name Table
 printf("\nName Table:\n\n");
 printf("index\tname\t\tline\tcolumn\n");
 for(int i = 0; i<nameCount; i++){
-    printf("%d\t%s\t\t%d\t%d\n", i, names[i].lexeme, names[i].line, names[i].col);
+    printf("%d\t\t\t%s\t\t\t%d\t\t\t%d\n", i, names[i].lexeme, names[i].line, names[i].col);
 }
 
 //Token List
